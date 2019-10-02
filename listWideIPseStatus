@@ -1,0 +1,128 @@
+from pprint import pprint
+from f5.bigip.resource import Collection
+from f5.bigip.resource import OrganizingCollection
+from f5.bigip.resource import Resource
+from f5.bigip import ManagementRoot
+user = "user"
+password = "*********"
+host1 = "host1"
+host2 = "1host2"
+#dcgtmccs = ManagementRoot("host1", "user", "********")
+dcgtmccs = ManagementRoot(host1, user, password)
+dcltmcyoi = ManagementRoot(host2, user, password)
+#GTM
+wideIPccs = dcgtmccs.tm.gtm.wideips.a_s.get_collection()
+all_pools = dcgtmccs.tm.gtm.pools.a_s.get_collection()
+#ltm
+virtualserversCCS = dcgtmccs.tm.ltm.virtuals.get_collection()
+virtualserversCyOI = dcltmcyoi.tm.ltm.virtuals.get_collection()
+
+def ColetaIPdoVS(nomedovs):
+    for virtual in (virtualserversCCS):
+        particdestIP = (virtual.destination).split('/')
+        ipdovs = particdestIP[2].split(':')
+
+        #print("virtual.name: {} nomedovs {} ".format(virtual.name, member.name))
+        #print("Virtual: {} => Member: {}".format(virtual.name, member.name))
+        if virtual.name == member.name:
+            
+            print("virtual.name: {} nomedovs: {} IP do vs: {}".format(virtual.name, member.name, ipdovs[0]))
+            if (ipdovs[0].startswith('177.53.251')) or (ipdovs[0].startswith('187.72.5')):
+                return ipdovs[0], 'CCS - Algar'
+            elif (ipdovs[0].startswith('177.53.249')) or (ipdovs[0].startswith('189.74.157')):
+                return ipdovs[0], 'CCS - Bronze'
+            elif (ipdovs[0].startswith('177.53.253')) or (ipdovs[0].startswith('187.4.128')):
+                return ipdovs[0], 'Cyber - Oi'
+            
+    for virtual in (virtualserversCyOI):
+        particdestIP = (virtual.destination).split('/')
+        ipdovs = particdestIP[2].split(':')
+        #print("virtual.name: {} nomedovs {} ".format(virtual.name, member.name))
+        #print("Virtual: {} => Member: {}".format(virtual.name, member.name))
+        if virtual.name == member.name:
+            print("virtual.name: {} nomedovs: {} IP do vs: {}".format(virtual.name, member.name, ipdovs[0]))
+            if (ipdovs[0].startswith('177.53.251')) or (ipdovs[0].startswith('187.72.5')):
+                return ipdovs[0], 'CCS - Algar'
+            elif (ipdovs[0].startswith('177.53.249')) or (ipdovs[0].startswith('189.74.157')):
+                return ipdovs[0], 'CCS - Bronze'
+            elif (ipdovs[0].startswith('177.53.253')) or (ipdovs[0].startswith('187.4.128')):
+                return ipdovs[0], 'Cyber - Oi'
+                #return ipdovs[0]
+            elif ipdovs[0] is None:
+                print('Não possui IP ')
+
+
+for wideip in wideIPccs:
+    print('---')
+    print('WideIP: {} Modo de balanceamento: {} '.format(wideip.name, wideip.poolLbMode))
+
+    if "enabled" in wideip.__dict__.keys():
+        print("Status: enabled")
+    elif "disabled" in wideip.__dict__.keys():
+        print("Status: disabled")
+  
+        
+    for pool in wideip.pools:
+        
+        # Verifica o metodo de balanceamento e informa quais os links ativos
+        for obj_pool in all_pools:
+            # Verifica se o Balanceamento é global-availability para o wideIP e seleciona o pool 0
+            if (wideip.poolLbMode == 'global-availability'):
+                
+                if obj_pool.name == pool['name'] and pool['order'] == 0:
+                    #imprime o tipo de balanceamento do pool
+                    print("  Pool: {} ".format(obj_pool.name))
+                    print("   LB Mode: {}".format(obj_pool.loadBalancingMode))
+                    for member in obj_pool.members_s.get_collection():
+                        # Verifica se pool é global-availability e seleciona o pool 0
+                        if obj_pool.loadBalancingMode == 'global-availability':
+                            if member.memberOrder == 0:
+                                #print("Status: {}".format(ColetaIPdoVS(member.name)))
+                                #exit()
+                                print('1--- {} ------'.format(member.name))
+                                ipdovs,datacenter = ColetaIPdoVS(member.name)
+
+                                print("   VS Member: {} IP: {} datacenter: {} order: {}".format(member.name, ipdovs,datacenter, member.memberOrder))
+                                #print("    VS Member: {} order: {}".format(member.name, member.memberOrder))
+
+                        # Se for round-robin imprime todos os membros do pool
+                        elif obj_pool.loadBalancingMode == 'round-robin':
+                            print('2--- {} ------'.format(member.name))
+                            ipdovs,datacenter = ColetaIPdoVS(member.name)
+                            print("   VS Member: {} IP: {} datacenter: {} order: {}".format(member.name, ipdovs,datacenter, member.memberOrder))
+                            #print("   VS Member: {} order: {}".format(member.name, member.memberOrder))
+                    
+            elif wideip.poolLbMode == "round-robin":
+               
+                if obj_pool.name == pool['name']:
+                    #imprime o tipo de balanceamento do pool
+                    print("  Pool: {} ".format(obj_pool.name))
+                    print("   Pool LB Mode: {}".format(obj_pool.loadBalancingMode))
+                    for member in obj_pool.members_s.get_collection():
+                        # Verifica se pool é global-availability e seleciona o pool 0
+                        if obj_pool.loadBalancingMode == 'global-availability':
+                            if member.memberOrder == 0:
+                                print('3--- {} ------'.format(member.name))
+                                ipdovs, datacenter = ColetaIPdoVS(member.name)
+                                print("   VS Member: {} IP: {} datacenter: {} order: {}".format(member.name, ipdovs,datacenter, member.memberOrder))
+                                #print("    VS Member: {} order: {}".format(member.name, member.memberOrder))
+                        # Se for round-robin imprime todos os membros do pool
+                        elif obj_pool.loadBalancingMode == 'round-robin':
+                            print('4--- {} ------'.format(member.name))
+                            ipdovs, datacenter = ColetaIPdoVS(member.name)
+                            print("   VS Member: {} IP: {} datacenter: {} order: {}".format(member.name, ipdovs,datacenter, member.memberOrder))
+
+
+
+
+
+
+
+
+# ##################### Samir ######3
+#         for obj_pool in all_pools:
+#             if obj_pool.name == pool['name']:
+#                 print("   Pool LB Mode: {}".format(obj_pool.loadBalancingMode))
+#                 for member in obj_pool.members_s.get_collection():
+#                     print("   Member: {} order: {} ".format(member.name,member.memberOrder ))
+#                 break
